@@ -1,0 +1,201 @@
+---
+title: "Linear Regression hw5"
+author: "Xinyi (Serene) Zhang"
+date: "10/21/2019"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+hw5 is meant to give you some practice on bootstrapping, calculations with linear algebra, and regressing with categorical variables. 
+
+#### 1.3 Bootstrap
+```{r}
+#population parameters
+set.seed(1021)
+n<-40
+beta<-matrix(c(-1.89,1.68),ncol=1)
+X<-cbind(rep(1,n),matrix(runif(n,1,10),nrow=n))
+Y<-X%*%beta+rnorm(40,0,sd=6*X[2])
+```
+
+#### Q1
+```{r}
+xtx_inv<-solve(t(X)%*%X)
+beta_hat<-xtx_inv%*%t(X)%*%Y
+beta_hat[1]
+beta_hat[2]
+```
+The coefficient is estimated to be -1.98 and 1.35.
+
+## Q2
+```{r}
+Y_hat<-X%*%beta_hat
+residual<-Y_hat-Y
+plot(X[,2],residual,xlab="Y_hat-Y",ylab="residuals")
+abline(0,0)
+```
+
+## Q3
+The constant variance is violated. We can see from the plot as well as the process we generate the data, that the error terms are correlated, which means that the variance of the residuals are affected by the value of x instead of a constant.
+
+## Q4
+If we have all four assumptions including linearity, $E(\varepsilon |x)=0$,$var(\varepsilon |x)=\sigma ^2$,$\varepsilon \sim N(0,\sigma^2)$, then$cov(\widehat{\beta}|X)\approx \sigma ^2(XX^{T})^{-1}$. Thus, 
+$cov(Y|X,X_{new})=cov(X_{new}\widehat{\beta}|X,X_{new})=X_{new}cov(\widehat{\beta}|X)X_{new}^{T}=\sigma^2X_{new}(X^{T}X)^{-1}X_{new}^{T}$
+
+
+## Q5
+```{r}
+slr<-lm(Y~X-1)
+plot(X[,2],Y,xlab="data$x",ylab="data$y")
+abline(a=beta_hat[1],b=beta_hat[2],col="red")
+hat_sigma2<-crossprod(Y-X%*%beta_hat)/(n-2)
+var_beta<-as.numeric(hat_sigma2)*xtx_inv
+#lines
+upper_Y<-Y_hat+qt(0.975,df=n-2)*sqrt(diag(X%*%var_beta%*%t(X)))
+lower_Y<-Y_hat+qt(0.025,df=n-2)*sqrt(diag(X%*%var_beta%*%t(X)))
+upper_con<-smooth.spline(X[,2],upper_Y,spar = 0.35)
+lower_con<-smooth.spline(X[,2],lower_Y,spar = 0.35)
+lines(upper_con,col="blue")
+lines(lower_con,col="blue")
+##bootstrap
+m=1000
+boot_output<-matrix(NA,ncol=n,nrow=m)
+boot_cof<-matrix(NA,ncol=2,nrow=m)
+for(i in 1:m){
+  new_data<-sample(1:n,n,replace=T)
+  reg<-lm(Y[new_data,]~X[new_data,]-1)
+  boot_cof[i,]<-reg$coefficients
+  boot_output[i,]<-X%*%boot_cof[i,]
+}
+y_boot<-apply(boot_output,2,quantile,c(0.025,0.975))
+lower_boot<-smooth.spline(X[,2],y_boot[1,],spar=0.35)
+upper_boot<-smooth.spline(X[,2],y_boot[2,],spar=0.35)
+lines(lower_boot,col="black")
+lines(upper_boot,col="black")
+
+legend("topleft",legend = c("reg line","95% CI assuming Const Var","95% CI bootstrap"),col = c("red","blue","black"),lty = 1,cex=0.8)
+```
+
+*Please read and use the dataset posted at [link]( https://www.kaggle.com/pavanraj159/predicting-a-pulsar-star)from Dr. Robert Lyon. You should ﬁnd a data set with 17898 records and 9 variables.*
+
+#### Q6
+```{r}
+setwd("D:/Linear Regression")
+data<-read.csv("pulsar_stars.csv")
+```
+
+#### Q7
+*Please calculate and report the precentage of Pulsars among the data.*
+```{r}
+sum(data$target_class==1)/nrow(data)
+```
+The percentage of Pulsars is 9.15%.
+
+#### Q8
+*To study our accuracy, we will perform a special cross validation described below. Please write the code that would partition the positive cases and negative cases, seperately, into 5 separate groups randomly and evenly. The resulting number of positive and negative cases across groups should be very similar (off by at most 1). This is unlike the case where we assign the records randomly into 5 groups while ignoring the positive vs negative labels.*
+```{r}
+class1<-subset(data,target_class==1)
+class1<-cbind(class1,group=sample(c(rep(1,327),rep(2,328),rep(3,328),rep(4,328),rep(5,328))))
+class0<-subset(data,target_class==0)
+class0<-cbind(class0,group=sample(c(rep(1,3251),rep(2,3252),rep(3,3252),rep(4,3252),rep(5,3252))))
+classr<-rbind(class1,class0)
+group1<-subset(classr,group==1)
+group2<-subset(classr,group==2)
+group3<-subset(classr,group==3)
+group4<-subset(classr,group==4)
+group5<-subset(classr,group==5)
+```
+
+#### Q9
+*Please write the code that predicts the response variable for group 5, using the regression model trained from group 1, 2, 3, and 4, let's call these predicted values p_tilda(X). Your regression should be regressing the dependent variable on all other variables.*
+```{r}
+training_set<-list("group1"=group1,"group2"=group2,"group3"=group3,"group4"=group4)
+slr_output<-lapply(training_set,function(i) matrix(NA,ncol=9,nrow=4))
+training_Xs<-lapply(training_set,function(i) data.matrix(i[,1:8]))
+training_Ys<-lapply(training_set,function(i) data.matrix(i[,9]))
+for(case in names(training_set)){
+  slr_output[[case]]<-lm(training_Ys[[case]]~training_Xs[[case]])$coefficients
+}
+slr_params=rep(0,9)
+it=0
+for(i in 1:9){
+  for(j in 1:4){it=it+slr_output[[j]][i]}
+  slr_params[i]<-it/4
+  it=0
+}
+testing_X<-cbind(rep(1,nrow(group5)),data.matrix(group5[1:8]))
+testing_Y<-data.matrix(group5[,9])
+slr_pred<-testing_X%*%slr_params##p(x)_bar by lm
+```
+
+#### Q10
+*Let's approach the problem from a logistic regression perspective. Under the generalized linear model set-up, what is the expression for p(X) if we're using the logit link?*
+If $y_{i}$ follows bernoulli distribution, than the link function:
+```{r}
+logit<-function(z){exp(z)/(1+exp(z))}
+```
+
+#### Q11
+*Please write the code that would calculate a different version of p_tilda(X) for group 5, using the data from group 1, 2, 3, and 4 by implementing logistic regression.*
+```{r}
+logit_output<-lapply(training_set,function(i) matrix(NA,ncol=9,nrow=4))
+for(case in names(training_set)){
+  logit_output[[case]]<-glm(training_Ys[[case]]~training_Xs[[case]],
+                            family = binomial(link=logit))$coefficients
+}
+logit_params=rep(0,9)
+it=0
+for(i in 1:9){
+  for(j in 1:4){it=it+logit_output[[j]][i]}
+  logit_params[i]=it/4
+  it=0
+}
+logit_pred_Y<-logit(testing_X%*%logit_params)#p(x)_hat by logistic regression
+```
+
+#### Q12
+*Please plot the scatter plot between p_hat(X) and p_tilda(X) for group 4 with the appropriate axis labels.*
+```{r}
+plot(logit_pred_Y,slr_pred,xlab="logit",ylab="slr")
+```
+
+#### Q13
+```{r}
+sim_num=nrow(group5)
+sim_slr_output<-matrix(NA,nrow=sim_num,ncol=2)
+sim_logit_output<-matrix(NA,nrow=sim_num,ncol=2)
+slr_new<-rep(0,nrow(slr_pred))
+for(i in 1:sim_num){
+  for(j in 1:nrow(logit_pred_Y)){
+    if(slr_pred[i]<=slr_pred[j]){slr_new[j]=1}
+    else{slr_new[j]=0}
+  }
+  sim_slr_output[i,1]=sum(testing_Y*slr_new)/sum(slr_new)#precision
+  sim_slr_output[i,2]=sum(testing_Y*slr_new)/sum(testing_Y)#recall
+}
+slr_recall<-sim_slr_output[,2]
+slr_precision<-sim_slr_output[,1]
+
+logit_new_Y<-rep(0,nrow(logit_pred_Y))
+for(i in 1:sim_num){
+  for(j in 1:nrow(logit_pred_Y)){
+    if(logit_pred_Y[i]<=logit_pred_Y[j]){logit_new_Y[j]=1}
+    else{logit_new_Y[j]=0}
+  }
+  sim_logit_output[i,1]=sum(testing_Y*logit_new_Y)/sum(logit_new_Y)#precision
+  sim_logit_output[i,2]=sum(testing_Y*logit_new_Y)/sum(testing_Y)#recall
+}
+logit_recall<-sim_logit_output[,2]
+logit_precision<-sim_logit_output[,1]
+
+plot.new()
+plot(logit_recall,logit_precision,xlab="recall",ylab="precision",col="red")
+points(slr_recall,slr_precision,col="blue")
+#slr_line<-smooth.spline(slr_recall,slr_precision,spar = 0.35)
+#logit_line<-smooth.spline(logit_recall,logit_precision,spar=0.35)
+#lines(logit_line,col="red",lwd=2)
+#lines(slr_line,col="blue",lwd=2)
+legend("bottomleft",c("regression","logistic"),fill = c("red","blue"),col=c("red","blue"))
+```
