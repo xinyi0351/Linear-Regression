@@ -1,0 +1,134 @@
+---
+title: "Linear Regression hw3"
+author: "Xinyi (Serene) Zhang"
+date: "9/28/2019"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+The famous Hooke's law describes the relationship between a spring's length and the weight it's carrying.
+
+## Q7
+*What would be considered the response variable here?*
+
+Weight. The length of a spring is only changed because the weight's gravity.
+
+## Q8
+*Please use least squares to fit a SLR to this data under the model. Reprot thr fitted coefficients. *
+
+```{r}
+Hooke<-data.frame(weight=c(0,2,4,6,8,10),length=c(439.0,439.12,439.21,439.31,439.40,439.50))
+lm1<-lm(length~weight,data=Hooke)
+summary(lm1)
+lm1$coefficients
+```
+
+The result of lm1 etimated the model as:
+$y_{i}=439.011+0.049x_{i}+\epsilon_{i}$
+
+## Q9
+*What is your best estimate (best in the term of sum of squared error) for the length of the spring when the weight is 9kg? *
+
+```{r}
+nw<-data.frame(weight=9,length=NA)
+est1<-predict(lm1,newdata = nw)
+est1
+```
+
+## Q10
+*Calulated the standard error for the estimate in Q9. Wht isn't variance a good value to descirbe the uncertainty relative to the standard error?*
+
+```{r}
+sigma2<-sum((lm1$residuals)^2)/4
+sigma2
+x<-Hooke$weight
+sum_square_x<-sum((x-mean(x))^2)
+sum_square_x
+theo_var<-sigma2*(1/6+(9-mean(x))^2/sum_square_x)
+SE<-sqrt(theo_var)
+SE
+```
+Variance is about $(x_{i}-\bar{x})^2$, the units of variance is not the same with other statistics. In that case, standard error is a better choice becasue it is more convienient to compute and compare with other statistics.
+
+## Q11
+*Imagine you are working with Hooke, the physicist. He wants you to show, graphically, the relationship between the spring length and the weight along with different uncertainty values.*
+```{r}
+plot(x,Hooke$length,xlab = "units")
+abline(lm1,col="red",lty=30)
+pred<-lm1$coefficients[1]+lm1$coefficients[2]*x
+theo_var<-sigma2*(1/6+(x-mean(x))^2/sum_square_x)
+theo_var
+pred_lower<-pred+2*sqrt(theo_var)
+pred_lower
+pred_upper<-pred-2*sqrt(theo_var)
+pred_upper
+lines(x,pred_lower,col="blue")
+lines(x,pred_upper,col="blue")
+legend(0,439.5,legend = c("linear regression line","confidence intervals"),col=c("red","blue"),lty=1, cex=0.8)
+```
+
+From Kaggle, there's a dataset on the wine ratings from Wine Enthusiast. We are going to predict the wine ratings, ie. the points, based on a feature we will generate from the text. 
+To create our feature, here is a list of some common adjectives for wine: "fruit", "aromas","acidity", "finish", "tannins", "cherry", "black", "ripe", "red", "rich", "fresh", "oak", "spice", "dry", "berry", "full", "plum", "apple", "soft", "sweet".
+
+#### Q12
+*Choose 10 adjectives randomly from the list above using a pseudo-random number generator like sample() in R and report which adjectives you got. (In real life, this could be a good baseline against expert marketers).*
+*Let's create a feature for wine that equals to the total count of the chosen 10 keywords within the descripttion.*
+```{r}
+set.seed(0)
+library(purrr)
+wine<-read.csv(file="hw3_filtered_wine_reviews.csv")
+adj<-c( "fruit", "aromas",
+"acidity", "finish", "tannins", "cherry", "black", "ripe", "red", "rich", "fresh", "oak", "spice", "dry", "berry", "full", "plum", "apple", "soft", "sweet")
+subadj<-sample(adj,10,replace=F)
+subadj
+descrip<-tolower(wine$description)%>%	replace(gsub('[^a-zA-Z]+',' '	,"H0l1o"),NA)%>%strsplit(split = " |\\,|\\.")%>%na.omit()
+```
+
+```{r}
+new_point<-c()
+for(i in 1:129971){
+  new_point[i]=length(intersect(unlist(descrip[i]),subadj))
+}
+```
+
+#### Q13
+*Now fit the linear regression by fitting points to this new feature. Report the coefficients you get for your regression line. *
+```{r}
+lm2<-lm(wine$points~new_point)
+summary(lm2)
+lm2$coefficients
+```
+The linear regression line fitted by points is$y=88.16+0.17x$
+
+#### Q14
+*Your team about to launch some marketing description of their new wine. You, unfortunately, was given the task to predict the points of the new wine will receive from WineEnthusiast. What is your prediction if the count is 3?*
+```{r}
+nw<-data.frame(points=NA,new_point=3)
+est2<-predict(lm2,newdata = nw)
+est2
+```
+When the count is 3, points is estimated as 88.67.
+
+#### Q15
+*Now your boss wants to communicate our your prediction to the marketing team, which uncertainty should you report on your prediction for the new wine?*
+```{r}
+sigma2<-sum((lm2$residuals)^2)/(length(lm2$residuals)-2)
+sum_square_x<-sum((new_point-mean(new_point))^2)
+sum_square_x
+theo_var<-sigma2*((1+length(new_point))/length(new_point)+(3-mean(new_point))^2/sum_square_x)
+SEpoint<-sqrt(theo_var)
+SEpoint
+pred2_lower<-est2+qt(0.025,length(new_point))*SEpoint
+pred2_upper<-est2+qt(0.975,length(new_point))*SEpoint
+pred2_lower
+pred2_upper
+
+```
+The uncertainty is $SE=3.03$, and the interval would be(82.72,94.61)
+
+#### Q16
+*Please comment on why the uncertainty you chose for Q11 and Q15 are the same or different?*
+
+Different. It is about $var(\widehat{Y}_{new}|X)$ and $var({Y}_{new}-\widehat{Y}_{new}|X)$. In Q11, we predict the length based on known weight. In Q10,$var(\widehat{Y}|X)=0.00527$ and based on the standard error we calculate the prediction interval. While in Q15, we care about confidence interval.
