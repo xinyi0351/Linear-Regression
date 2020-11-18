@@ -1,7 +1,7 @@
 # Linear-Regression
 GR5205 at Columbia University
 
-It's a linear regression course from an applied angle. In this repository, I upload notes on important topics and a few important assignments I've done. Logic behind each of the assignment is about how to test an assumption through simulations with Little deduction involved. 
+It's a linear regression course from an applied angle. In this repository, I upload notes on important topics and a few important assignments I've done. Logic behind each of the assignment is about how to test an assumption through simulations with little deduction involved. 
 
 ### Topics for the course
 
