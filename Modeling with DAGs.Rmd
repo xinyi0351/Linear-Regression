@@ -1,0 +1,108 @@
+---
+title: "Modeling with DAG"
+output: html_notebook
+---
+
+**The 8th assignment is meant to give you some practive with translating problems into the linear model framework.**
+
+# Significance in prediction vs inference
+
+If the data is generating in the following manner...
+```{r}
+n<-1000
+X<-rnorm(n,-5,1)
+Y<-rnorm(n,5,1)
+Z<-matrix(X+Y+rnorm(n,0,1),ncol=1)
+```
+
+And we have no idea about it. The possible wrong solution for studying Y would be fit Y on X and Z, and can be visualized as...
+![dags](Picture1.png)
+```{r train models}
+modelz<-lm(Y~Z)
+modelxz<-lm(Y~Z+X)
+n<-100
+X_new<-rnorm(n,-5,1)
+Y_new<-rnorm(n,5,1)
+Z_new<-data.frame(X_new+Y_new+rnorm(n,0,1))
+predz<-modelz$coefficients[1]+modelz$coefficients[2]*Z_new
+predxz<-modelxz$coefficients[1]+modelxz$coefficients[2]*Z_new+modelxz$coefficients[3]*X_new
+sum((predz-Y_new)^2)/100
+sum((predxz-Y_new)^2)/100
+```
+
+The losts of the two models are printed. Then we trying to figure out if there are any difference between the two:
+
+```{r significance}
+set.seed(NULL)
+s<-100
+error<-matrix(NA,ncol=2,nrow=s)
+for(i in 1:s){
+  X_new<-rnorm(n,-5,1)
+  Y_new<-rnorm(n,5,1)
+  Z_new<-data.frame(X_new+Y_new+rnorm(n,0,1))
+  predz<-modelz$coefficients[1]+modelz$coefficients[2]*Z_new
+  predxz<-modelxz$coefficients[1]+modelxz$coefficients[2]*Z_new+modelxz$coefficients[3]*X_new
+  error[i,1]<-sum((predz-Y_new)^2)/100
+  error[i,2]<-sum((predxz-Y_new)^2)/100
+}
+diff<-error[,1]-error[,2]
+quantile(diff,c(0.025,0.975))
+```
+
+As zero does not fall into the interval, we can say that there exists significance difference between the two models. 
+
+```{r t-test}
+index<-rep(1:10,100)
+error2<-matrix(NA,ncol=2,nrow=10)
+data<-matrix(cbind(X,Y,Z,index),ncol=4)
+for(i in 1:10){
+  test<-data.frame(matrix(data[index==i],ncol=4))
+  colnames(test)<-c("X","Y","Z","index")
+  train<-data.frame(matrix(data[index!=i],ncol=4))
+  colnames(train)<-c("X","Y","Z","index")
+
+  m1<-lm(Y~Z,data=train)
+  pred1<-m1$coefficients[1]+m1$coefficients[2]*test$Z
+  error2[i,1]<-sum((pred1-test$Y)^2)
+  m2<-lm(Y~Z+X,data=train)
+  pred2<-m2$coefficients[1]+m2$coefficients[2]*test$Z+m2$coefficients[3]*test$X
+  error2[i,2]<-sum((pred2-test$Y)^2)
+}
+diff<-abs(error2[,2]-error2[,1])
+t<-mean(diff)/(sqrt((9*var(error2[,1])+9*var(error2[,2]))/18)*sqrt(1/5))
+t<-mean(diff)*sqrt(10)/sd(diff)
+#t-test
+t.test(error2[,2],error2[,1],var.equal = FALSE,conf.level = 0.95)
+```
+
+The conclusion of the difference was again confirmed with the t-test since the p-value of the t-test is below 0.05 based on which we reject the null hypothesis. The parameter between X and Y has no meaning because no causality exists between the two. The parameter between Z and Y do explain some correlation between the two variables. However, the significance test for the coefficient is meaningless since all other assumptions are violated.
+
+# DAG
+### Example studying obesity and checkups
+
+![obesity](Picture12png.png)
+An inference would be https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4381543/.
+
+# Wrong model's validation
+
+```{r wrong}
+n<-100
+X<-rnorm(100,0,0.9)
+Y<-1+5*sin(X)+rnorm(n,0,1)
+model1<-lm(Y~X)
+sigma2<-crossprod(Y-model1$fitted.values)/(n-2)
+#generate new X and Y
+X_new<-seq(min(X),max(X),length.out = 10)
+Y_hat<-model1$coefficients[1]+model1$coefficients[2]*X_new
+Y_new<-matrix(NA,ncol=10,nrow=n)
+for(i in 1:10){
+  Y_new[,i]<-rnorm(n,Y_hat[i],sqrt(sigma2))
+}
+CI<-apply(Y_new,2,quantile,c(0.05,0.95))
+plot(X,Y)
+lines(X_new,CI[1,],col="blue")
+lines(X_new,CI[2,],col="blue")
+```
+The true data was generated with sin(X) but fitted with X. We create a 90% prediction interval at 10 equally spaced values of X_new ranging from the smallest to the largest value in the original data X (shown in the blue lines). 
+
+The wrong model cound do reasonably at certain regions of the data. However, if we look closer at the plot, we can spot a tendency that the predicted area is off the trend of the data. The true data generating process is never known in the real world. By this simulation, we have a taste of how the model is deficient. 
