@@ -2,7 +2,7 @@
 title: "Linear Regression hw5"
 author: "Xinyi (Serene) Zhang"
 date: "10/21/2019"
-output: word_document
+output: html_document
 ---
 
 ```{r setup, include=FALSE}

@@ -1,0 +1,111 @@
+---
+title: "High demensional regression and Instrumental Variables"
+output: html_notebook
+---
+
+# High Dimensional Regression
+
+The dataset is from NOAA, and is the monthly average of the daily maximum temperature from 2010 Jan to 2019 May. Each row represents a month/year where each column represents a different weather station in the US. The data is in chronological order where the first record is
+2010 Jan and the final record is 2019 May. The data are in units of 0.01 Celsius (i.e. divide by 100 to get Celsius).
+
+We use the station ”USH00487388” as our dependent variable and the remaining stations as independent variables. And removed the stations with missing values. For this specific question, we don't need to center and scale the independent variables as all features shall the same units (0.01 Celsius). 
+
+### Perpare the data
+
+```{r load, warning=FALSE}
+library(readr)
+library(tidyverse)
+
+weather<-read_csv("cleaned_tmax_201001_201905.csv")
+
+missing_data<-as.integer(apply(weather,2,anyNA))
+weather<-weather[which(missing_data==0)]
+Y<-weather%>%select(USH00487388)
+X<-weather%>%select(-USH00487388)
+train<-as.matrix(X[1:103,])
+test<-as.matrix(X[104:115,])
+```
+
+### SVD
+
+```{r SVD}
+decomp<-svd(train)
+ratio<-cumsum(decomp$d^2)/sum(decomp$d^2)
+plot(ratio)
+```
+
+Perform SVD on the train set. Ratio of the first five eigen values would hit 0.98. Using only the first 2 eigen vectors, the period is discovered to be 12 which is nearly a year.
+
+```{r iteration}
+w<-as.matrix(train)%*%decomp$v[,1:2]
+ggplot(as_tibble(w))+geom_line(aes(x=1:103,y=w[,1]),color="red")+geom_line(aes(x=1:103,y=w[,2]),color="blue")+geom_abline(h=0)+theme_light()+
+  labs(x="time",color="color")
+```
+### Regression (SLR, Lasso, Ridge)
+
+I then performed linear regression with the selected first two eigen vectors. Ridge and lasso regression are introduced after the baseline model. 
+
+```{r base}
+Y_train<-as.matrix(Y[1:103,])
+Y_test<-as.matrix(Y[104:115,])
+slr<-lm(Y_train~w)
+summary(slr)
+
+beta_hat<-as.matrix(c(slr$coefficients))
+w_test<-test%*%decomp$v[,1:2]
+Y_hat<-cbind(1,w_test)%*%beta_hat
+round(sqrt(sum(abs(Y_test-Y_hat)^2)/12),6)
+```
+
+```{r lasso}
+library(glmnet)
+
+lasso.cv<-cv.glmnet(train,Y_train,lambda=10^seq(2,-5,length.out=400),alpha=1)
+plot(lasso.cv)
+gamma<-lasso.cv$lambda.min
+lasso<-glmnet(train,Y_train,alpha=1,lambda=gamma,intercept = TRUE)
+lasso_hat<-predict(lasso,s=gamma,newx=test)
+round(sqrt(sum(abs(Y_test-lasso_hat)^2)/12),6)
+
+```
+
+```{r ridge}
+ridge.cv<-cv.glmnet(train,Y_train,lambda=10^seq(3,-2,length.out = 300),alpha=0)
+plot(ridge.cv)
+gamma<-ridge.cv$lambda.min
+ridge<-glmnet(train,Y_train,alpha=0,lambda=gamma*2,intercept = TRUE)
+ridge_hat<-predict(ridge,s=gamma,newx=test)
+round(sqrt(sum(abs(Y_test-ridge_hat)^2)/12),6)
+
+```
+
+# Instrumental Variable
+
+In the context of instrumental variables, we have
+$$
+\begin{aligned}
+Y &= \beta_0+\beta_x X+\beta_z Z+\epsilon\;where\;Z\;is\;unobserved\\
+X&=\alpha_0+\alpha_w W+\alpha_zZ+\rho\;where\;W\;is\;the\;instrument\;and\;Z\;is\;the\;confounder\\
+Let\;W&=\mu_W+\gamma\\
+Let\;Z&=\mu_Z+\xi
+\end{aligned}
+$$
+We can obtain an unviased estimate using a 2 stage regression, that is regress X on W, then regress Y on the fitted values from the first regression. Here's an example. 
+
+```{r data}
+m<-300
+beta<-matrix(NA,nrow=10000)
+for(i in 1:10000){
+  Z<-rexp(m,rate=.7)
+  W<-3+rnorm(m,0,1)
+  Z<-5+rnorm(m,3,7)
+  X<-2+W+Z+rnorm(m,1,2)
+  Y<-10+2*X+Z+rnorm(m,5,1)
+  beta[i]<-lm(Y~W)$coefficient[2]
+}
+mean<-mean(beta)
+ggplot(as.data.frame(beta))+geom_histogram(aes(beta))+geom_vline(xintercept = mean,color="red")
+
+```
+
+We can see that the estimated beta is an unbiased the estimator from the data given. 

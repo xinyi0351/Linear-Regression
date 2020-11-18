@@ -1,8 +1,8 @@
 ---
-title: "Linear Regression hw3"
+title: "Two Samples about SLR"
 author: "Xinyi (Serene) Zhang"
 date: "9/28/2019"
-output: word_document
+output: html_document
 ---
 
 ```{r setup, include=FALSE}
@@ -10,12 +10,12 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 The famous Hooke's law describes the relationship between a spring's length and the weight it's carrying.
 
-## Q7
+#### Q7
 *What would be considered the response variable here?*
 
 Weight. The length of a spring is only changed because the weight's gravity.
 
-## Q8
+#### Q8
 *Please use least squares to fit a SLR to this data under the model. Reprot thr fitted coefficients. *
 
 ```{r}
@@ -28,7 +28,7 @@ lm1$coefficients
 The result of lm1 etimated the model as:
 $y_{i}=439.011+0.049x_{i}+\epsilon_{i}$
 
-## Q9
+#### Q9
 *What is your best estimate (best in the term of sum of squared error) for the length of the spring when the weight is 9kg? *
 
 ```{r}
@@ -37,7 +37,7 @@ est1<-predict(lm1,newdata = nw)
 est1
 ```
 
-## Q10
+#### Q10
 *Calulated the standard error for the estimate in Q9. Wht isn't variance a good value to descirbe the uncertainty relative to the standard error?*
 
 ```{r}
@@ -52,7 +52,7 @@ SE
 ```
 Variance is about $(x_{i}-\bar{x})^2$, the units of variance is not the same with other statistics. In that case, standard error is a better choice becasue it is more convienient to compute and compare with other statistics.
 
-## Q11
+#### Q11
 *Imagine you are working with Hooke, the physicist. He wants you to show, graphically, the relationship between the spring length and the weight along with different uncertainty values.*
 ```{r}
 plot(x,Hooke$length,xlab = "units")
