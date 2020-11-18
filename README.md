@@ -17,6 +17,6 @@ It's a linear regression course from an applied angle. In this repository, I upl
 
 1. Two samples about simple linear regression.
 2. Bootstrap & Categorical data (Logistics Regression) with pulsar star prediction.
-3. Simulation and model interpreting.
+3. Weighted Linear Square (Individual vs Aggregated)
 4. Modeling with DAG
 5. High demensional regression and Instrumental Variables
