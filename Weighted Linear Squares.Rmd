@@ -1,5 +1,5 @@
 ---
-title: "High demensional regression and Instrumental Variables"
+title: "Weighted Linear Squares"
 output: html_notebook
 ---
 
